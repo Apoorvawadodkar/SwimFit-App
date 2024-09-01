@@ -1,4 +1,7 @@
 import mysql.connector
+import numpy as np
+import matplotlib.pyplot as plt
+
 
 def connect_db():
     connection=mysql.connector.connect(host="localhost",user="root",password="Apoorva@",database="swimfit")
@@ -86,7 +89,7 @@ def login_user(username, password_hash):
     cursor.close()
     connection.close()
     
-#This functions lets a admin create a new workout plan for a specific user
+#Create Workout Plan
 def create_workout_plan(admin_id, user_id, plan_details):
     connection = connect_db()
     cursor = connection.cursor()
@@ -102,15 +105,19 @@ def create_workout_plan(admin_id, user_id, plan_details):
 
     print("Workout plan created successfully!")
 
-#Similar to the workout plan function, this allows an admin to create a new diet plan for a specific user.
+# Create a diet plan for a specific user, with dietary restrictions check
 def create_diet_plan(admin_id, user_id, plan_details):
-    
     connection = connect_db()
     cursor = connection.cursor()
 
-    sql = "insert into diet_plans (admin_id, user_id, plan_details) values (%s, %s, %s)"
+    # Fetch dietary restrictions
+    cursor.execute("SELECT dietary_restrictions FROM users WHERE user_id = %s", (user_id,))
+    restrictions = cursor.fetchone()[0]
+    print("User's dietary restrictions:", restrictions)
+
+    # Admin can then proceed with creating the diet plan
+    sql = "INSERT INTO diet_plans (admin_id, user_id, plan_details) VALUES (%s, %s, %s)"
     values = (admin_id, user_id, plan_details)
-    
 
     cursor.execute(sql, values)
     connection.commit()
@@ -120,7 +127,7 @@ def create_diet_plan(admin_id, user_id, plan_details):
 
     print("Diet plan created successfully!")
     
-#This function allows an admin to update specific details of a user.    
+#Update uder Details   
 def update_user_details(admin_id, user_id, fitness_level=None, goal=None, dietary_restrictions=None):
     
     connection = connect_db()
@@ -140,7 +147,7 @@ def update_user_details(admin_id, user_id, fitness_level=None, goal=None, dietar
 
     print("User details updated successfully!")
     
-#This function allows users to log their workout progress, including the date, a summary of the workout, and any notes about their progress.
+#Log Progress
 def log_progress(user_id, workout_date, workout_summary, progress_notes):
     connection = connect_db()
     cursor = connection.cursor()
@@ -156,7 +163,7 @@ def log_progress(user_id, workout_date, workout_summary, progress_notes):
 
     print("Progress logged successfully!")
     
-#This function retrieves all progress records for a specific user from the progress table in sql.
+#Get user Progress
 def get_user_progress(user_id):
    
     connection = connect_db()
@@ -171,20 +178,51 @@ def get_user_progress(user_id):
 
     return progress
 
-#This function provides basic analytics on a user's performance, such as counting the total number of workouts logged.
+# Analyze performance with graph
 def analyze_performance(user_id):
     connection = connect_db()
     cursor = connection.cursor()
+    
+    # Get event name and timings from the user
+    event_name = input("Enter the event name (e.g., 50m Freestyle): ")
+    timings = []
 
-    progress = get_user_progress(user_id)
-    
-    total_workouts = len(progress)
-    print(f"Total workouts logged: {total_workouts}")
-    
+    while True:
+        timing = input("Enter your timing for {} (or type 'done' to finish): ".format(event_name))
+        if timing.lower() == 'done':
+            break
+        try:
+            timings.append(float(timing))
+        except ValueError:
+            print("Please enter a valid number.")
+
+    if not timings:
+        print("No timings entered.")
+        return
+
+    # Analyze performance by plotting the timings
+    timings = np.array(timings)
+    races = np.arange(1, len(timings) + 1)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(races, timings, marker='o', linestyle='-', color='b')
+    plt.title(f'{event_name} Performance')
+    plt.xlabel('Race Number')
+    plt.ylabel('Time (seconds/Minutes(Acoording to the user))')
+    plt.grid(True)
+    plt.show()
+
+    # Additional analysis (e.g., average time)
+    avg_time = np.mean(timings)
+    print(f"Average time for {event_name}: {avg_time:.2f} seconds")
+
     cursor.close()
     connection.close()
 
-#Allows the user to view their workout.
+    print("Performance analysis complete!")
+
+
+#View workout plans
 def view_plans(user_id):
     connection = connect_db()
     cursor = connection.cursor()
@@ -200,7 +238,7 @@ def view_plans(user_id):
     cursor.close()
     connection.close()
 
-#Allows the users to view their diet plans.
+#View diet plans
 def view_diet_plan(user_id):
     connection = connect_db()
     cursor = connection.cursor()
@@ -214,6 +252,22 @@ def view_diet_plan(user_id):
     
     cursor.close()
     connection.close()
+    
+# This function displays a list of Frequently Asked Questions.
+def show_faq():
+    faqs = {
+        "What is SwimFit?": "SwimFit is a personalized swimming fitness platform where users can track their workouts and diet plans.",
+        "How do I register?": "You can register as a user or an admin by selecting the appropriate option from the main menu.",
+        "How can I log my progress?": "Once logged in, go to the user menu and select 'Log Progress' to enter your workout details.",
+        "Who can see my progress?": "Only you and admins can view the progress you've logged.",
+        "What if I forget my User ID?": "Make sure to note down your User ID after registration. If lost, you will need to contact support."
+    }
+
+    print("Frequently Asked Questions:")
+    for question, answer in faqs.items():
+        print(f"\nQ: {question}\nA: {answer}")
+
+    input("\nPress Enter to return to the main menu...")
         
 #Main menu page.
 def main():
@@ -222,8 +276,11 @@ def main():
     print("")
     
     while True:
-        user_type = input("Are you an [A]dmin or [U]ser? Or [E]xit: ").lower()
-
+        user_type = input("Are you an [A]dmin, [U]ser, [F]AQ, or [E]xit:").lower()
+        
+        if user_type == 'f':
+            show_faq()
+            
         if user_type == 'a':
             choice = input("Choose an option: [1] Register Admin [2] Login Admin [3] Exit: ")
 
@@ -267,9 +324,11 @@ def main():
                             update_user_details(admin_id, user_id, fitness_level, goal, dietary_restrictions)
                         
                         elif admin_choice == '4':
+                            Print("Logged Out")
                             break
             
             elif choice == '3':
+                print("Goodbye!")
                 break
 
         elif user_type == 'u':
@@ -295,7 +354,7 @@ def main():
                 password_hash = input("password: ")
                 if login_user(username, password_hash):
                     while True:
-                        user_choice = input("Choose an option: [1] Log Progress [2] View Progress [3] Analyze Performance [4] View Workout Plans [5] View Diet PLans [6] Logout: ")
+                        user_choice = input("Choose an option: [1] Log Progress [2] Analyze Performance [3] View Workout Plans [4] View Diet PLans [5] Logout: ")
 
                         if user_choice == '1':
                             user_id = int(input("User ID: "))
@@ -306,29 +365,26 @@ def main():
                         
                         elif user_choice == '2':
                             user_id = int(input("User ID: "))
-                            progress = get_user_progress(user_id)
-                            for entry in progress:
-                                print(entry)
-                        
-                        elif user_choice == '3':
-                            user_id = int(input("User ID: "))
                             analyze_performance(user_id)
                             
-                        elif user_choice == '4':
+                        elif user_choice == '3':
                             user_id = int(input("User ID: "))
                             view_plans(user_id)
                         
-                        elif user_choice == '5':
+                        elif user_choice == '4':
                             user_id = int(input("User ID: "))
                             view_diet_plan(user_id)
                         
-                        elif user_choice == '6':
+                        elif user_choice == '5':
+                            print("Logged out")
                             break
             
             elif choice == '3':
+                print("Goodbye")
                 break
 
         elif user_type == 'e':
+            print("Goodbye")
             break
 
 main()
